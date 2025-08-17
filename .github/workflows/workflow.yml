@@ -20,7 +20,7 @@ jobs:
                 nodejs_version: [18, 19, 20]
                 os: [ubuntu-latest, macos-latest, windows-latest]
 
-                execlude:
+                exclude:
                     - nodejs_version: 18
                       os: macos-latest
 
@@ -45,7 +45,7 @@ jobs:
 
 
             - name: Archive test result
-              if: steps.NodeJs-unit-testing-steps.outcome == 'failure' || steps.NodeJs-unit-testing-steps.outcome == 'success' 
+              if: ${{ steps.NodeJs-unit-testing-steps.outcome == 'failure' || steps.NodeJs-unit-testing-steps.outcome == 'success' }}
               uses: actions/upload-artifact@v4.6.2
               with:
                 name: SP-Test-Result-${{ github.sha }}
