@@ -7,7 +7,7 @@ on:
             - feature-branchA
             - main
 
-            
+
 env:
     MONGO_URI: "mongodb+srv://supercluster.d83jj.mongodb.net/superData"
     MONGO_USERNAME: ${{ vars.MONGO_USERNAME }}
@@ -49,5 +49,5 @@ jobs:
               if: ${{ steps.NodeJs-unit-testing-steps.outcome == 'failure' || steps.NodeJs-unit-testing-steps.outcome == 'success' }}
               uses: actions/upload-artifact@v4.6.2
               with:
-                name: SP-Test-Result-${{ github.sha }}
+                name: SP-Test-Result-${{ github.sha }}-${{ matrix.os }}-node${{ matrix.nodejs_version }}
                 path: test-results.xml
