@@ -51,3 +51,30 @@ jobs:
               with:
                 name: SP-Test-Result-${{ github.sha }}-${{ matrix.os }}-node${{ matrix.nodejs_version }}
                 path: test-results.xml
+
+
+    code-coverage:
+        name: code coverage
+        needs: unit-testing
+        runs-on: ubuntu-latest
+        steps:
+            - name: checkout Repo
+              uses: actions/checkout@v5
+
+            - name: Setup NodeJs version - 18
+              uses: actions/setup-node@v4.4.0
+              with:
+                node-version: 18
+
+            - name: install dep
+              run: npm install
+
+            - name: check code coverage
+              run: npm run coverage
+
+            - name: archive coverage results
+              uses: actions/upload-artifact@v4.6.2
+              with:
+                name: code-coverage-Result
+                path: coverage
+                retention-days: 5
