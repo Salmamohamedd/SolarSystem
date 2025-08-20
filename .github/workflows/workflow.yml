@@ -1,131 +1,51 @@
-name: solar system workflow
+name: Build and Push Docker Image
 
 on:
-    workflow_dispatch:
-    push:
-        branches: 
-            - feature-branchA
-            - main
-
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'        # Push tags like v1.0.0
 
 env:
-    MONGO_URI: "mongodb+srv://supercluster.d83jj.mongodb.net/superData"
-    MONGO_USERNAME: ${{ vars.MONGO_USERNAME }}
-    MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+  IMAGE_NAME: app 
+  MONGO_URI: "mongodb+srv://supercluster.d83jj.mongodb.net/superData"
+  MONGO_USERNAME: ${{ vars.MONGO_USERNAME }}
+  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+
 
 jobs:
-    unit-testing:
-        name: unit_testing
-        strategy:
-            matrix:
-                nodejs_version: [18, 19, 20]
-                os: [ubuntu-latest, macos-latest, windows-latest]
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-                exclude:
-                    - nodejs_version: 18
-                      os: macos-latest
+      - name: Set up QEMU (for multi-arch if needed)
+        uses: docker/setup-qemu-action@v3
 
-        runs-on: ${{ matrix.os }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-        steps:
-            - name: checkout Repo
-              uses: actions/checkout@v5
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-            - name: Setup NodeJs version - ${{ matrix.nodejs_version }}
-              uses: actions/setup-node@v4.4.0
-              with:
-                node-version: ${{ matrix.nodejs_version }} 
+      - name: Extract Metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
 
-            - name: install dep
-              run: npm install
-
-
-            - name: unit testing
-              id: NodeJs-unit-testing-steps
-              run: npm test
-
-
-            - name: Archive test result
-              if: ${{ steps.NodeJs-unit-testing-steps.outcome == 'failure' || steps.NodeJs-unit-testing-steps.outcome == 'success' }}
-              uses: actions/upload-artifact@v4.6.2
-              with:
-                name: SP-Test-Result-${{ github.sha }}-${{ matrix.os }}-node${{ matrix.nodejs_version }}
-                path: test-results.xml
-
-
-    code-coverage:
-        name: code coverage
-        needs: unit-testing
-        runs-on: ubuntu-latest
-        steps:
-            - name: checkout Repo
-              uses: actions/checkout@v5
-
-            - name: Setup NodeJs version - 18
-              uses: actions/setup-node@v4.4.0
-              with:
-                node-version: 18
-
-            - name: install dep
-              run: npm install
-
-            - name: check code coverage
-              continue-on-error: true
-              run: npm run coverage
-
-            - name: archive coverage results
-              uses: actions/upload-artifact@v4.6.2
-              with:
-                name: code-coverage-Result
-                path: coverage
-                retention-days: 5
-                
-
-    docker:
-        name: containerization
-        needs: [code-coverage, unit-testing]
-        permissions:
-            contents: read
-            packages: write
-        runs-on: ubuntu-latest
-        steps: 
-            - name: checkout Repo
-              uses: actions/checkout@v5
-
-            - name: docker login
-              uses: docker/login-action@v3.5.0
-              with:
-                username: ${{ secrets.DOCKERHUB_USERNAME }}
-                password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-
-            - name: GHCR login
-              uses: docker/login-action@v3.5.0
-              with:
-                registry: ghcr.io
-                username: ${{ github.repository_owner }}
-                password: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Build Docker file
-              uses: docker/build-push-action@v6
-              with:
-                context: .
-                file: ./Dockerfile
-                push: true
-                tags: |
-                    ${{ secrets.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}
-                    ghcr.io/salma/solar-system:${{ github.sha }}
-
-            - name: test docker image
-              run: |
-                docker images 
-                docker run --name solar-system-app -d \
-                -p 3000:3000 \
-                -e MONGO_URI=$MONGO_URI \
-                -e MONGO_USERNAME=$MONGO_USERNAME \
-                -e MONGO_PASSWORD=$MONGO_PASSWORD
-                ${{ secrets.DOCKERHUB_USERNAME }}/solar-system:${{ github.sha }}
-                export IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' solar-system-app)
-                echo $IP
-                echo Testing Image URL using wget
-                wget -q -O - 127.0.0.1:3000/live | grep  live
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

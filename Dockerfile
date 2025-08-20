@@ -1,17 +1,22 @@
-FROM node:18-alpine3.17
+# Use minimal Node.js LTS image
+FROM node:18-alpine
 
-WORKDIR /usr/app
+# Set working directory
+WORKDIR /app
 
-COPY package*.json /usr/app/
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
 
-RUN npm install
-
+# Copy application code
 COPY . .
 
-ENV MONGO_URI=uriPlaceholder
-ENV MONGO_USERNAME=usernamePlaceholder
-ENV MONGO_PASSWORD=passwordPlaceholder
-
+# Expose port (adjust if your app uses a different port)
 EXPOSE 3000
 
-CMD [ "npm", "start" ]
+# Define health check (optional but recommended)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# Start the application
+CMD ["npm", "start"]
